@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from utils import get_response, find_tag
 from configs import configure_argument_parser, configure_logging
-from constants import BASE_DIR, MAIN_DOC_URL, MAIN_DOC_URL_PEP
+from constants import BASE_DIR, MAIN_DOC_URL, MAIN_DOC_URL_PEP, SECOND_TD
 from outputs import control_output
 
 
@@ -106,20 +106,43 @@ def pep(session):
     response = get_response(session, MAIN_DOC_URL_PEP)
     soup = BeautifulSoup(response.text, 'lxml')
 
-    main_div = find_tag(soup, 'section', attrs={'id': 'index-by-category'})
-    section_by_pep = main_div.find_all('section')
-    for i in section_by_pep:
-        table = find_tag(i, 'table', attrs={
+    main_section = find_tag(soup, 'section', attrs={'id': 'index-by-category'})
+    section_by_pep = main_section.find_all('section')
+    docs_links = []
+    status_list = []
+    for section in section_by_pep:
+        table = find_tag(section, 'table', attrs={
             'class': 'pep-zero-table docutils align-default'})
         tbody = find_tag(table, 'tbody')
         trs = tbody.find_all('tr')
         for tr in trs:
             tds = tr.find_all('td')
-            second_td = tds[1]
+            first_td = tds[0]
+            second_td = tds[SECOND_TD]
             pep_a_tag = find_tag(second_td, 'a')
             href = pep_a_tag['href']
             docs_link = urljoin(MAIN_DOC_URL_PEP, href)
-            print(docs_link)
+            docs_links.append(docs_link)
+    for href in docs_links:
+        response = get_response(session, href)
+        soup = BeautifulSoup(response.text, 'lxml')
+        pep_content = find_tag(soup, 'section', attrs={
+                               'id': 'pep-content'})
+        find_status = find_tag(pep_content,
+                               re.compile(r'^(dt|dd)$'), attrs={'class': re.compile(r'^field-(odd|even)$')})
+        if 'Status' in find_status.text:
+            res = find_status.find_next_sibling('dd')
+            status_list.append(res)
+        else:
+            find_status = find_status.find_next_sibling('dt')
+            if 'Status' in find_status.text:
+                res = find_status.find_next_sibling('dd')
+                status_list.append(res)
+    print(len(docs_links))
+    print(len(status_list))
+
+    #         print(first_td.text[1:])
+    # print(len(docs_links))
 
 
 MODE_TO_FUNCTION = {
