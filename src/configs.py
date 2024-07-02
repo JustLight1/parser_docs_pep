@@ -37,8 +37,9 @@ def configure_logging():
     logging.basicConfig(
         datefmt=DT_FORMAT,
         format=LOG_FORMAT,
+        encoding='utf-8',
         # Уровень записи логов.
         level=logging.INFO,
         # Вывод логов в терминал.
-        handlers=(rotating_handler, logging.StreamHandler())
+        handlers=(rotating_handler, logging.StreamHandler(),)
     )
