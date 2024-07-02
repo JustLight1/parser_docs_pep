@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from utils import get_response, find_tag
 from configs import configure_argument_parser, configure_logging
-from constants import BASE_DIR, MAIN_DOC_URL, MAIN_DOC_URL_PEP, SECOND_TD
+from constants import BASE_DIR, FIRST_TD, MAIN_DOC_URL, MAIN_DOC_URL_PEP, SECOND_TD, STATUS
 from outputs import control_output
 
 
@@ -108,8 +108,9 @@ def pep(session):
 
     main_section = find_tag(soup, 'section', attrs={'id': 'index-by-category'})
     section_by_pep = main_section.find_all('section')
+    status_count = {}
     docs_links = []
-    status_list = []
+
     for section in section_by_pep:
         table = find_tag(section, 'table', attrs={
             'class': 'pep-zero-table docutils align-default'})
@@ -117,32 +118,38 @@ def pep(session):
         trs = tbody.find_all('tr')
         for tr in trs:
             tds = tr.find_all('td')
-            first_td = tds[0]
+            first_td = tds[FIRST_TD].text[STATUS:]
             second_td = tds[SECOND_TD]
             pep_a_tag = find_tag(second_td, 'a')
             href = pep_a_tag['href']
-            docs_link = urljoin(MAIN_DOC_URL_PEP, href)
-            docs_links.append(docs_link)
-    for href in docs_links:
-        response = get_response(session, href)
-        soup = BeautifulSoup(response.text, 'lxml')
-        pep_content = find_tag(soup, 'section', attrs={
-                               'id': 'pep-content'})
-        find_status = find_tag(pep_content,
-                               re.compile(r'^(dt|dd)$'), attrs={'class': re.compile(r'^field-(odd|even)$')})
-        if 'Status' in find_status.text:
-            res = find_status.find_next_sibling('dd')
-            status_list.append(res)
-        else:
-            find_status = find_status.find_next_sibling('dt')
-            if 'Status' in find_status.text:
-                res = find_status.find_next_sibling('dd')
-                status_list.append(res)
-    print(len(docs_links))
-    print(len(status_list))
+            doc_link = urljoin(MAIN_DOC_URL_PEP, href)
+            docs_links.append(doc_link)
 
-    #         print(first_td.text[1:])
-    # print(len(docs_links))
+        for href in docs_links:
+            response = get_response(session, href)
+            soup = BeautifulSoup(response.text, 'lxml')
+            pep_content = find_tag(
+                soup, 'dl', attrs={'class': 'rfc2822 field-list simple'})
+            dt_tags = pep_content.find_all('dt')
+
+            for dt_tag in dt_tags:
+                if 'Status' in dt_tag.text:
+                    status_tag = dt_tag.find_next_sibling('dd')
+                    status_text = status_tag.text
+                    if status_text in status_count:
+                        status_count[status_text] += 1
+                    else:
+                        status_count[status_text] = 1
+                    break
+
+    results = [('Статус', 'Количество')]
+    for status, count in status_count.items():
+        results.append((status, count))
+
+    total_count = sum(status_count.values())
+    results.append(('Total', total_count))
+
+    return results
 
 
 MODE_TO_FUNCTION = {
