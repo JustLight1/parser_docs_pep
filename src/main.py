@@ -9,7 +9,8 @@ from tqdm import tqdm
 
 from utils import get_response, find_tag
 from configs import configure_argument_parser, configure_logging
-from constants import BASE_DIR, FIRST_TD, MAIN_DOC_URL, MAIN_DOC_URL_PEP, SECOND_TD, STATUS
+from constants import (BASE_DIR, FIRST_TD, MAIN_DOC_URL,
+                       MAIN_DOC_URL_PEP, SECOND_TD, STATUS, EXPECTED_STATUS)
 from outputs import control_output
 
 
@@ -25,7 +26,7 @@ def whats_new(session):
     sections_by_python = div_with_ul.find_all(
         'li', attrs={'class': 'toctree-l1'})
 
-    results = [('Ссылка на статью', 'Заголовок', 'Редактор, автор')]
+    results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
 
     for section in tqdm(sections_by_python):
         version_a_tag = find_tag(section, 'a')
@@ -105,42 +106,37 @@ def download(session):
 def pep(session):
     response = get_response(session, MAIN_DOC_URL_PEP)
     soup = BeautifulSoup(response.text, 'lxml')
-
-    main_section = find_tag(soup, 'section', attrs={'id': 'index-by-category'})
-    section_by_pep = main_section.find_all('section')
+    table = find_tag(soup, 'section', attrs={'id': 'numerical-index'})
+    tbody = find_tag(table, 'tbody')
+    trs = tbody.find_all('tr')
     status_count = {}
-    docs_links = []
+    for tr in tqdm(trs):
+        tds = tr.find_all('td')
+        first_td = tds[FIRST_TD].text[STATUS:]
+        second_td = tds[SECOND_TD]
+        pep_a_tag = find_tag(second_td, 'a')
+        href = pep_a_tag['href']
+        doc_link = urljoin(MAIN_DOC_URL_PEP, href)
 
-    for section in section_by_pep:
-        table = find_tag(section, 'table', attrs={
-            'class': 'pep-zero-table docutils align-default'})
-        tbody = find_tag(table, 'tbody')
-        trs = tbody.find_all('tr')
-        for tr in trs:
-            tds = tr.find_all('td')
-            first_td = tds[FIRST_TD].text[STATUS:]
-            second_td = tds[SECOND_TD]
-            pep_a_tag = find_tag(second_td, 'a')
-            href = pep_a_tag['href']
-            doc_link = urljoin(MAIN_DOC_URL_PEP, href)
-            docs_links.append(doc_link)
+        response = get_response(session, doc_link)
+        soup = BeautifulSoup(response.text, 'lxml')
+        pep_content = find_tag(
+            soup, 'dl', attrs={'class': 'rfc2822 field-list simple'})
+        dt_tags = pep_content.find(string='Status').parent
+        status_tag = dt_tags.find_next_sibling('dd')
+        status_text = status_tag.text
 
-        for href in docs_links:
-            response = get_response(session, href)
-            soup = BeautifulSoup(response.text, 'lxml')
-            pep_content = find_tag(
-                soup, 'dl', attrs={'class': 'rfc2822 field-list simple'})
-            dt_tags = pep_content.find_all('dt')
+        if status_text in status_count:
+            status_count[status_text] += 1
+        else:
+            status_count[status_text] = 1
 
-            for dt_tag in dt_tags:
-                if 'Status' in dt_tag.text:
-                    status_tag = dt_tag.find_next_sibling('dd')
-                    status_text = status_tag.text
-                    if status_text in status_count:
-                        status_count[status_text] += 1
-                    else:
-                        status_count[status_text] = 1
-                    break
+        if status_text not in EXPECTED_STATUS[first_td]:
+            logging.info('Несовпадающие статусы:\n'
+                         f'{doc_link}\n'
+                         f'Статус в карточке: {status_text}\n'
+                         f'Ожидаемые статусы: \n'
+                         f'{EXPECTED_STATUS[first_td]}\n')
 
     results = [('Статус', 'Количество')]
     for status, count in status_count.items():
