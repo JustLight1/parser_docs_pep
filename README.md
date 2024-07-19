@@ -72,3 +72,9 @@ usage: main.py [-h] [-c] [-o {pretty,file}]
    -h, --help "show this help message and exit"
    -c, --clear-cache "Очистка кеша"
    -o {pretty,file}, --output {pretty,file} "Дополнительные способы вывода данных"
+
+## Автор:
+
+**Форов Александр**
+
+[![Telegram Badge](https://img.shields.io/badge/-Light_88-blue?style=social&logo=telegram&link=https://t.me/Light_88)](https://t.me/Light_88) [![Gmail Badge](https://img.shields.io/badge/forov.py@gmail.com-c14438?style=flat&logo=Gmail&logoColor=white&link=mailto:forov.py@gmail.com)](mailto:forov.py@gmail.com)
